@@ -1,8 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\CategoryApiController;
+use App\Http\Controllers\Api\TransactionApiController;
 use App\Http\Controllers\web\AccountController;
 use App\Http\Controllers\web\CategoryController;
 use App\Http\Controllers\web\TransactionController;
+use App\Http\Controllers\web\HealthController;
 use App\Http\Controllers\Api\AccountApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,8 +29,18 @@ Route::get('/test', function () {
 });
 
 Route::prefix('api')->group(function () {
-    Route::get('/accounts', [AccountApiController::class, 'index']);
     Route::post('/accounts', [AccountApiController::class, 'store']);
-    Route::delete('/accounts/{id}', [AccountApiController::class, 'delete']);
+    Route::get('/accounts', [AccountApiController::class, 'index']);
     Route::put('/accounts/{id}', [AccountApiController::class, 'update']);
+    Route::delete('/accounts/{id}', [AccountApiController::class, 'destroy']);
+
+    Route::get('/categories/{type}', [CategoryApiController::class, 'index']);
+
+    Route::post('/transactions', [TransactionApiController::class, 'store']);
+    Route::get('/transactions', [TransactionApiController::class, 'index']);
+    Route::put('/transactions/{id}', [TransactionApiController::class, 'update']);
+    Route::delete('/transactions/{id}', [TransactionApiController::class, 'destroy']);
+
 });
+
+Route::get('/health', [HealthController::class, 'check']);

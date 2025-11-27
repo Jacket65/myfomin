@@ -2,13 +2,19 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Dto\TransactionDto;
+use App\Dto\TransactionRequestDto;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\TransactionRequest;
 use App\Models\Account;
 use App\Models\Transaction;
-use Illuminate\Http\Request;
+use App\Services\TransactionService;
+use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Response as ResponseAlias;
+use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 /**
  * @OA\Tag(
@@ -19,6 +25,9 @@ use Illuminate\Support\Facades\Response as ResponseAlias;
 
 class TransactionApiController extends Controller
 {
+    use ApiResponse;
+
+    public function __construct(protected TransactionService $transactionService) {}
     /**
      * Returns a list of all transactions with categories
      */
@@ -33,36 +42,34 @@ class TransactionApiController extends Controller
      *         response=200,
      *         description="Successfully retrieved transaction list",
      *         @OA\JsonContent(
-     *             type="object",
-     *             @OA\Property(property="success", type="boolean", example=true),
-     *             @OA\Property(
-     *                 property="data",
-     *                 type="array",
-     *                 @OA\Items(ref="#/components/schemas/Transaction")
-     *             )
+     *              type="array",
+     *             @OA\Items(ref="#/components/schemas/Transaction")
      *         )
      *     )
      * )
      */
     public function index(): JsonResponse
     {
-        $transactions = Transaction::with('category', 'account')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return ResponseAlias::json([
-            'success' => true,
-            'data' => $transactions
-        ], 200);
+        $transaction = $this->transactionService->get();
+        return $this->respond($transaction, ResponseAlias::HTTP_OK);
+        //
+        //        $transactions = Transaction::with('category', 'account')
+        //            ->orderBy('created_at', 'desc')
+        //            ->get();
+        //
+        //        return ResponseAlias::json([
+        //            'success' => true,
+        //            'data' => $transactions
+        //        ], 200);
     }
 
     /**
-     * Creates a new transaction (deposit or withdrawal)
+     * Creates a new transaction (deposit or spend)
      */
     /**
      * @OA\Post(
      *     path="/api/transactions",
-     *     summary="Create a new transaction (deposit or withdrawal)",
+     *     summary="Create a new transaction (deposit or spend)",
      *     description="Adds a new transaction and updates the account balance.",
      *     tags={"Transactions"},
      *     @OA\RequestBody(
@@ -89,69 +96,99 @@ class TransactionApiController extends Controller
      *     @OA\Response(
      *         response=400,
      *         description="Invalid request data",
-     *         @OA\JsonContent(
-     *             type="object",
-     *             @OA\Property(property="success", type="boolean", example=false),
-     *             @OA\Property(property="message", type="string", example="Validation error: type field is required.")
-     *         )
+     *         @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
      *     ),
      *     @OA\Response(
      *         response=500,
      *         description="Error creating transaction",
-     *         @OA\JsonContent(
-     *             type="object",
-     *             @OA\Property(property="success", type="boolean", example=false),
-     *             @OA\Property(property="message", type="string", example="Failed to create transaction"),
-     *             @OA\Property(property="error", type="string", example="SQLSTATE[23000]: Integrity constraint violation ...")
-     *         )
+     *         @OA\JsonContent(ref="#/components/schemas/ErrorResponse")
      *     )
      * )
      */
-    public function store(Request $request): JsonResponse
+    public function store(TransactionRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'type' => ['required', 'in:deposit,withdrawal'],
-            'account_id' => ['required', 'exists:accounts,id'],
-            'category_id' => ['required', 'exists:categories,id'],
-            'amount' => ['required', 'numeric', 'min:0.01'],
-            'description' => ['nullable', 'string', 'max:255'],
-        ]);
+        $data = $request->validated();
+        $dto = new TransactionRequestDto($data);
+        $dtoResponse = $this->transactionService->store($dto);
+        return $this->respond($dtoResponse, ResponseAlias::HTTP_CREATED);
+    }
 
-        try {
-            DB::beginTransaction();
+    /**
+     * Update a transaction.
+     *
+     * @OA\Put(
+     *     path="/api/transactions/{id}",
+     *     summary="Update a transaction",
+     *     tags={"Transactions"},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Transaction ID",
+     *         required=true,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(ref="#/components/schemas/TransactionDto")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Transaction updated successfully",
+     *         @OA\JsonContent(ref="#/components/schemas/TransactionDto")
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Invalid request data"
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Transaction not found"
+     *     )
+     * )
+     */
 
-            // Create transaction
-            $transaction = Transaction::create([
-                'type' => $validated['type'],
-                'amount' => $validated['amount'],
-                'account_id' => $validated['account_id'],
-                'category_id' => $validated['category_id'],
-                'description' => $validated['description'] ?? null,
-                'created_at' => now(),
-            ]);
+    public function update(TransactionRequest $request, $id): JsonResponse
+    {
+        $transaction =  $request->validated();
+        $transaction['id'] = $id;
+        $dto = new TransactionDto($transaction);
+        $this->transactionService->update($dto);
+        return $this->respond($dto, ResponseAlias::HTTP_OK);
+    }
 
-            // Update account balance
-            if ($validated['type'] === 'deposit') {
-                Account::where('id', $validated['account_id'])->increment('amount', $validated['amount']);
-            } else {
-                Account::where('id', $validated['account_id'])->decrement('amount', $validated['amount']);
-            }
 
-            DB::commit();
 
-            return ResponseAlias::json([
-                'success' => true,
-                'message' => 'Transaction created successfully',
-                'data' => $transaction
-            ], 201);
-        } catch (\Throwable $e) {
-            DB::rollBack();
+    /**
+     * Delete a transaction.
+     *
+     * @OA\Delete(
+     *     path="/api/transactions/{id}",
+     *     summary="Delete a transaction",
+     *     tags={"Transactions"},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Transaction ID",
+     *         required=true,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=204,
+     *         description="Transaction deleted successfully"
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Transaction not found"
+     *     )
+     * )
+     */
 
-            return ResponseAlias::json([
-                'success' => false,
-                'message' => 'Failed to create transaction',
-                'error' => $e->getMessage()
-            ], 500);
+    public function destroy(int $id): Response|JsonResponse
+    {
+        if ($this->transactionService->deleteByID($id)) {
+            return $this->respondNodata();
+        } else {
+            return $this->error("Not Found", "there is no record with such id", ResponseAlias::HTTP_NOT_FOUND);
         }
     }
 }

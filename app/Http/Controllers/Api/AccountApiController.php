@@ -1,15 +1,17 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
+use App\Dto\AccountRequestDto;
+use App\Dto\AccountDto;
+use App\Dto\AccountResponseDto;
 use App\Http\Controllers\Controller;
-use App\Models\Account;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Response;
-use Illuminate\Routing\Redirector;
+use App\Http\Requests\AccountRequest;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
+use App\Services\AccountService;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
-
+use Illuminate\Http\Request;
 /**
  * @OA\Tag(
  *     name="Accounts",
@@ -18,7 +20,13 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
  */
 class AccountApiController extends Controller
 {
+    protected AccountService $accountService;
+    use ApiResponse;
 
+    public function __construct(AccountService $accountService)
+    {
+        $this->accountService = $accountService;
+    }
     /**
      * @OA\Get(
      *     path="/api/accounts",
@@ -27,13 +35,12 @@ class AccountApiController extends Controller
      *     @OA\Response(
      *         response=200,
      *         description="List of accounts returned successfully",
-     *         @OA\JsonContent(type="array", @OA\Items(ref="#/components/schemas/Account"))
+     *         @OA\JsonContent(type="array", @OA\Items(ref="#/components/schemas/AccountResponse"))
      *     )
      * )
      */
-    public function index() {
-        $accounts = Account::orderBy('id')->get();
-        return json_encode($accounts);
+    public function index(): JsonResponse {
+        return $this->respond($this->accountService->getAll(), ResponseAlias::HTTP_OK);
     }
 
     /**
@@ -43,36 +50,32 @@ class AccountApiController extends Controller
      *     tags={"Accounts"},
      *     @OA\RequestBody(
      *         required=true,
-     *         @OA\JsonContent(
-     *             required={"name", "amount"},
-     *             @OA\Property(property="name", type="string", maxLength=20, example="Main Account"),
-     *             @OA\Property(property="amount", type="number", example=5000.75)
-     *         )
+     *         @OA\JsonContent(ref="#/components/schemas/AccountRequest")
      *     ),
      *     @OA\Response(
      *         response=201,
      *         description="Account created successfully",
-     *         @OA\JsonContent(ref="#/components/schemas/Account")
+     *         @OA\JsonContent(ref="#/components/schemas/AccountResponse")
      *     ),
      *     @OA\Response(
      *         response=422,
-     *         description="Validation error"
+     *         description="Validation error",
+     *         @OA\JsonContent (
+     *             @OA\Property(property="err", type="string")
+     *         )
      *     )
      * )
      */
 
-    public function store()
+    public function store(AccountRequest $request)
     {
-        $validated = request()->validate([
-            'name' => ['required', 'string', 'max:20'],
-            'amount' => ['required', 'numeric', 'max:100000000'],
-        ]);
-
-        $accounts = Account::create($validated);
-
-        return response()->json($accounts, ResponseAlias::HTTP_CREATED);
+            $data =  $request->validated();
+            $dto = new AccountRequestDto($data['name'], $data['amount']);
+            $accountResponse = $this->accountService->store($dto);
+            return $this->respond($accountResponse, ResponseAlias::HTTP_CREATED);
 
     }
+
     /**
      * @OA\Delete(
      *     path="/api/accounts/{id}",
@@ -95,17 +98,13 @@ class AccountApiController extends Controller
      *     )
      * )
      */
-    public function destroy($id)
+    public function destroy($accountID): \Illuminate\Http\Response|JsonResponse
     {
-        $deletedCount = Account::destroy($id);
-
-        if ($deletedCount > 0) {
-            return response()->noContent();
+        if ($this->accountService->deleteByID($accountID)) {
+            return $this->respondNodata();
+        } else {
+            return $this->error('NotFound',  'there is no record with such id', ResponseAlias::HTTP_NOT_FOUND);
         }
-
-        return response()->json([
-            'error' => 'Account not found.'
-        ], ResponseAlias::HTTP_NOT_FOUND);
     }
 
     /**
@@ -125,13 +124,13 @@ class AccountApiController extends Controller
      *         @OA\JsonContent(
      *             required={"name", "amount"},
      *             @OA\Property(property="name", type="string", example="Updated Account"),
-     *             @OA\Property(property="amount", type="number", example=7000.50)
+     *             @OA\Property(property="amount", type="number", example=7000)
      *         )
      *     ),
      *     @OA\Response(
      *         response=200,
      *         description="Account updated successfully",
-     *         @OA\JsonContent(ref="#/components/schemas/Account")
+     *         @OA\JsonContent(ref="#/components/schemas/AccountResponse")
      *     ),
      *     @OA\Response(
      *         response=404,
@@ -140,12 +139,10 @@ class AccountApiController extends Controller
      * )
      */
 
-    public function update($id) {
-        $account = Account::where('id', $id)->update([
-            'name' => request('name'),
-            'amount' => request('amount'),
-        ]);
-
-        return response()->json($account, ResponseAlias::HTTP_OK);
+    public function update(AccountRequest $request, $id) {
+        $data = $request->validated();
+        $dto = new AccountDto($id, $data['name'], $data['amount']);
+        $accountDto = $this->accountService->update($dto);
+        return $this->respond($accountDto, ResponseAlias::HTTP_OK);
     }
 }

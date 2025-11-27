@@ -21,7 +21,7 @@
                                 "schema": {
                                     "type": "array",
                                     "items": {
-                                        "$ref": "#/components/schemas/Account"
+                                        "$ref": "#/components/schemas/AccountResponse"
                                     }
                                 }
                             }
@@ -40,22 +40,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "required": [
-                                    "name",
-                                    "amount"
-                                ],
-                                "properties": {
-                                    "name": {
-                                        "type": "string",
-                                        "maxLength": 20,
-                                        "example": "Main Account"
-                                    },
-                                    "amount": {
-                                        "type": "number",
-                                        "example": 5000.75
-                                    }
-                                },
-                                "type": "object"
+                                "$ref": "#/components/schemas/AccountRequest"
                             }
                         }
                     }
@@ -66,13 +51,25 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/Account"
+                                    "$ref": "#/components/schemas/AccountResponse"
                                 }
                             }
                         }
                     },
                     "422": {
-                        "description": "Validation error"
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "err": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -112,7 +109,7 @@
                                     },
                                     "amount": {
                                         "type": "number",
-                                        "example": 7000.5
+                                        "example": 7000
                                     }
                                 },
                                 "type": "object"
@@ -126,7 +123,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/Account"
+                                    "$ref": "#/components/schemas/AccountResponse"
                                 }
                             }
                         }
@@ -164,14 +161,14 @@
                 }
             }
         },
-        "/api/categories": {
+        "/api/categories/{type}": {
             "get": {
                 "tags": [
                     "Categories"
                 ],
-                "summary": "Get a list of categories by type",
+                "summary": "Get a list of categories by type (deposet or spend)",
                 "description": "Returns a list of categories filtered by type. The 'type' parameter is required.",
-                "operationId": "13fa51e057842febe9cb4e4f8e8322de",
+                "operationId": "ec3297fc727a1c43c630dfc5908f7fbf",
                 "parameters": [
                     {
                         "name": "type",
@@ -185,27 +182,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Categories successfully retrieved",
+                        "description": "List of category by type",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": true
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "example": "Categories successfully retrieved."
-                                        },
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/components/schemas/Category"
-                                            }
-                                        }
-                                    },
-                                    "type": "object"
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Category"
+                                    }
                                 }
                             }
                         }
@@ -215,17 +199,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": false
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "example": "The 'type' parameter is required."
-                                        }
-                                    },
-                                    "type": "object"
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }
@@ -235,21 +209,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": false
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "example": "Error retrieving categories."
-                                        },
-                                        "error": {
-                                            "type": "string",
-                                            "example": "Error message details here"
-                                        }
-                                    },
-                                    "type": "object"
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }
@@ -271,19 +231,10 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": true
-                                        },
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/components/schemas/Transaction"
-                                            }
-                                        }
-                                    },
-                                    "type": "object"
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Transaction"
+                                    }
                                 }
                             }
                         }
@@ -294,7 +245,7 @@
                 "tags": [
                     "Transactions"
                 ],
-                "summary": "Create a new transaction (deposit or withdrawal)",
+                "summary": "Create a new transaction (deposit or spend)",
                 "description": "Adds a new transaction and updates the account balance.",
                 "operationId": "011c7bd4e5cf22aa760e58118f74bdcc",
                 "requestBody": {
@@ -374,17 +325,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": false
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "example": "Validation error: type field is required."
-                                        }
-                                    },
-                                    "type": "object"
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }
@@ -394,24 +335,86 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean",
-                                            "example": false
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "example": "Failed to create transaction"
-                                        },
-                                        "error": {
-                                            "type": "string",
-                                            "example": "SQLSTATE[23000]: Integrity constraint violation ..."
-                                        }
-                                    },
-                                    "type": "object"
+                                    "$ref": "#/components/schemas/ErrorResponse"
                                 }
                             }
                         }
+                    }
+                }
+            }
+        },
+        "/api/transactions/{id}": {
+            "put": {
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Update a transaction",
+                "description": "Update a transaction.",
+                "operationId": "1d97935fb3ce3aced1e1fa1226e5c21f",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Transaction ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TransactionDto"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Transaction updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TransactionDto"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request data"
+                    },
+                    "404": {
+                        "description": "Transaction not found"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Delete a transaction",
+                "description": "Delete a transaction.",
+                "operationId": "5067d94301b6d899832b47b99862a4a4",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Transaction ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Transaction deleted successfully"
+                    },
+                    "404": {
+                        "description": "Transaction not found"
                     }
                 }
             }
@@ -419,8 +422,28 @@
     },
     "components": {
         "schemas": {
-            "Account": {
-                "title": "Account",
+            "AccountRequest": {
+                "title": "AccountRequest",
+                "description": "Account model schema",
+                "required": [
+                    "name",
+                    "amount"
+                ],
+                "properties": {
+                    "name": {
+                        "description": "* @OA\\Schema(\n    schema=\"AccountRequest\",\n    type=\"object\",\n    title=\"AccountRequest\",\n    description=\"Account model schema\",\n    required={\"name\", \"amount\"},",
+                        "type": "string",
+                        "example": "Main Account"
+                    },
+                    "amount": {
+                        "type": "number",
+                        "example": 5000
+                    }
+                },
+                "type": "object"
+            },
+            "AccountResponse": {
+                "title": "AccountResponse",
                 "description": "Account model schema",
                 "required": [
                     "id",
@@ -456,6 +479,57 @@
                     "type": {
                         "type": "string",
                         "example": "product"
+                    }
+                },
+                "type": "object"
+            },
+            "ErrorResponse": {
+                "title": "ErrorResponse",
+                "description": "error response interface",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "example": "short description"
+                    },
+                    "detail": {
+                        "type": "string",
+                        "example": "detail"
+                    }
+                },
+                "type": "object"
+            },
+            "TransactionDto": {
+                "required": [
+                    "id",
+                    "account_id",
+                    "type",
+                    "amount",
+                    "description",
+                    "category_id"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "account_id": {
+                        "type": "integer"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "amount": {
+                        "type": "integer"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "category_id": {
+                        "type": "integer"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
                     }
                 },
                 "type": "object"
@@ -506,7 +580,7 @@
                         "$ref": "#/components/schemas/Category"
                     },
                     "account": {
-                        "$ref": "#/components/schemas/Account"
+                        "$ref": "#/components/schemas/AccountRequest"
                     }
                 },
                 "type": "object"
