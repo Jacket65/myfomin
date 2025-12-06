@@ -20,6 +20,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 'api/*',
             ]
         );
+        $middleware->append(\App\Http\Middleware\AssignRequestId::class);
+        $middleware->alias([
+            'idempotent' => \App\Http\Middleware\IdempotencyMiddleware::class,
+        ]);
+//        $middleware->append('throttle:global');
+
+
+
     })
     ->withExceptions(function (Exceptions $exceptions): void {
 
@@ -37,6 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json([
                     'error' => 'Not Found.',
                     'detail' => 'The requested resource could not be found.',
+//
                 ], 404);
             }
         });
@@ -50,15 +59,15 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
-        $exceptions->renderable(function (Throwable $e, $request) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'error' => 'Server error.',
-                    'detail' => config('app.debug')
-                        ? $e->getMessage()
-                        : 'An unexpected error occurred. Please try again later.',
-                ], 500);
-            }
-        });
+//        $exceptions->renderable(function (Throwable $e, $request) {
+//            if ($request->expectsJson()) {
+//                return response()->json([
+//                    'error' => 'Server error.',
+//                    'detail' => config('app.debug')
+//                        ? $e->getMessage()
+//                        : 'An unexpected error occurred. Please try again later.',
+//                    ], 500);
+//            }
+//        });
     })
     ->create();

@@ -3,7 +3,7 @@
 namespace App\Domain;
 use Illuminate\Database\Eloquent\Model;
 
-class Transaction extends Model {
+class Transaction {
     public int $id;
     public int $account_id;
     public string $type;
@@ -12,21 +12,6 @@ class Transaction extends Model {
     public string $description;
     public int $category_id;
 
-    protected static function booted(){
-        static::saving(function (Transaction $transaction){
-            if($transaction->amount <= 0){
-                throw new \Exception("Сума транзакції повинна бути додатньою");
-            }
-        });
-    }
-
-    public function isIncome() : bool{
-        return $this->type === 'income';
-    }
-
-    public function getOppositeAmount() : int{
-        return $this->isIncome() ? $this->amount : -$this->amount;
-    }
 
     public function __construct(int $id, int $account_id, string $type, int $amount, string $created_at, string $description, int $category_id){
         $this->id = $id;
