@@ -1,0 +1,238 @@
+name: Laravel CI
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: laravel
+
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.2
+          extensions: mbstring, pdo, pdo_pgsql, pgsql
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor
+            ~/.composer/cache
+            ~/.composer
+          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Setup Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          cat <<EOL >> .env
+          DB_CONNECTION=pgsql
+          DB_HOST=127.0.0.1
+          DB_PORT=5432
+          DB_DATABASE=laravel
+          DB_USERNAME=postgres
+          DB_PASSWORD=secret
+          APP_URL=http://localhost
+          APP_ENV=testing
+          EOL
+
+      - name: Run Migrations
+        run: php artisan migrate --force
+
+      - name: Run tests (PHPUnit)
+        run: |
+          mkdir -p reports
+          vendor/bin/phpunit --log-junit reports/junit.xml --coverage-clover reports/coverage.xml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: reports/junit.xml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: reports/coverage.xml
+
+  build-and-push:
+    needs: test
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: laravel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/docker
+          key: docker-${{ hashFiles('Dockerfile') }}
+          restore-keys: |
+            docker-
+
+      - name: Build Docker image
+        run: docker build -t test-image .
+
+      - name: Run container with DB
+        run: |
+          docker run -d --name test-app \
+            --network host \
+            -p 80:80 \
+            -e DB_HOST=127.0.0.1 \
+            -e DB_PORT=5432 \
+            -e DB_DATABASE=laravel \
+            -e DB_USERNAME=postgres \
+            -e DB_PASSWORD=secret \
+            test-image
+
+      - name: Setup Laravel inside container
+        run: |
+          docker exec test-app cp .env.example .env
+          docker exec test-app php artisan key:generate
+          docker exec test-app sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/' /var/www/html/.env
+          docker exec test-app sed -i 's/^# DB_HOST=.*/DB_HOST=postgres/' /var/www/html/.env
+          docker exec test-app sed -i 's/^# DB_PORT=.*/DB_PORT=5432/' /var/www/html/.env
+          docker exec test-app sed -i 's/^# DB_DATABASE=.*/DB_DATABASE=laravel/' /var/www/html/.env
+          docker exec test-app sed -i 's/^# DB_USERNAME=.*/DB_USERNAME=postgres/' /var/www/html/.env
+          docker exec test-app sed -i 's/^# DB_PASSWORD=.*/DB_PASSWORD=secret/' /var/www/html/.env
+          docker exec test-app php artisan migrate --force
+          docker exec test-app chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+      - name: Check app health
+        run: |
+          sleep 10
+          curl -f http://localhost:80 || exit 1
+
+      - name: Determine semantic version
+        id: semver
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST_TAG#v}"
+          PATCH=$((PATCH + 1))
+          echo "version=v$MAJOR.$MINOR.$PATCH" >> $GITHUB_OUTPUT
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          driver: docker-container
+
+      - name: Build and Push Docker image
+        run: |
+          REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          TAG_SHA=${{ steps.semver.outputs.version }}-sha-${{ steps.semver.outputs.sha }}
+          TAG_LATEST=latest
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker buildx build --push \
+          --cache-from=type=registry,ref=ghcr.io/$REPO_LOWER:buildcache \
+          --cache-to=type=registry,ref=ghcr.io/$REPO_LOWER:buildcache,mode=max \
+          -t ghcr.io/$REPO_LOWER:$TAG_LATEST \
+          -t ghcr.io/$REPO_LOWER:$TAG_SHA .
+
+  summary:
+    runs-on: ubuntu-latest
+
+    needs: [test]
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: summary-artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: junit-report
+          path: summary-artifacts
+
+      - name: Extract Coverage %
+        id: coverage
+        run: |
+          FILE=summary-artifacts/coverage.xml
+          if [ -f "$FILE" ]; then
+            STMT=$(grep -oP '<metrics [^>]*statements="\K[0-9]+' "$FILE" | tail -1)
+            COVERED=$(grep -oP '<metrics [^>]*coveredstatements="\K[0-9]+' "$FILE" | tail -1)
+            COVERAGE_PCT=$(awk "BEGIN {printf \"%.2f\", ($COVERED/$STMT)*100}")
+            echo "coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
+          else
+            echo "coverage=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Job Summary
+        run: |
+          ARTIFACTS_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [[ "${{ needs.test.result }}" == "success" ]]; then
+            TEST_STATUS="✅ успішно"
+          elif [[ "${{ needs.test.result }}" == "skipped" ]]; then
+            TEST_STATUS="⚪ пропущено"
+          else
+            TEST_STATUS="❌ помилка"
+          fi
+
+          echo "## CI Pipeline успішно виконано" >> $GITHUB_STEP_SUMMARY
+          echo "### Статус джобів:" >> $GITHUB_STEP_SUMMARY
+          # echo "**Lint:** $LINT_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "**Tests:** $TEST_STATUS" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "###  Code Coverage:" >> $GITHUB_STEP_SUMMARY
+          echo "Покриття: **${{ steps.coverage.outputs.coverage }}%**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "###  Артефакти:" >> $GITHUB_STEP_SUMMARY
+          echo "JUnit Report" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage Report" >> $GITHUB_STEP_SUMMARY
