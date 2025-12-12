@@ -61,7 +61,7 @@ jobs:
           php artisan key:generate
           cat <<EOL >> .env
           DB_CONNECTION=pgsql
-          DB_HOST=postgres
+          DB_HOST=127.0.0.1
           DB_PORT=5432
           DB_DATABASE=myfin
           DB_USERNAME=postgres
@@ -69,16 +69,6 @@ jobs:
           APP_URL=http://localhost
           APP_ENV=testing
           EOL
-
-      - name: Wait for PostgreSQL to be ready
-        run: |
-
-          until pg_isready --host=postgres --port=5432 --username=postgres; do
-            echo "Waiting for PostgreSQL to start..."
-            sleep 2
-          done
-          echo "PostgreSQL is up and running!"
-        shell: bash
 
       - name: Run Migrations
         run: php artisan migrate --force
