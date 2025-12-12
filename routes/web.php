@@ -18,8 +18,8 @@ Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-Route::get('/profile', [ProfileController::class, 'creaye'])->name('profile.edit');
 Route::post('/register', [\App\Http\Controllers\Auth\RegisteredUserController::class, 'store'])->name('register');
+Route::get('/register', [\App\Http\Controllers\Auth\RegisteredUserController::class, 'create']);
 
 
 Route::middleware(['auth', 'throttle:global'])->group(function () {
@@ -29,11 +29,14 @@ Route::middleware(['auth', 'throttle:global'])->group(function () {
     Route::put('/accounts/{id}', [AccountController::class, 'update'])->name('accounts.update');
 
     Route::post('/transactions', [TransactionController::class, 'create'])->name('transactions.create');
+    Route::delete('/transactions/{id}', [TransactionController::class, 'destroy'])->name('transactions.delete');
+    Route::put('/transactions/{id}', [TransactionController::class, 'update'])->name('transactions.update');
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
 
-    Route::get('/categories/{type}', [CategoryController::class, 'index'])->name('categories.index');
+
 
 });
+Route::get('/categories/{type}', [CategoryController::class, 'index'])->name('categories.index');
 
 
 Route::prefix('api')->middleware('throttle:global')->group(function () {

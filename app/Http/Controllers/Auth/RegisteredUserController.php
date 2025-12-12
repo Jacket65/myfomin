@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +41,27 @@ class RegisteredUserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
+
+        $defaultCategories = [
+            ['name' => 'Спорт',            'type' => 'spend'],
+            ['name' => 'Догляд за собою',  'type' => 'spend'],
+            ['name' => 'Супермаркети',     'type' => 'spend'],
+
+            ['name' => 'Зарплата',         'type' => 'deposit'],
+            ['name' => 'Подарунки',        'type' => 'deposit'],
+            ['name' => 'Стипендія',        'type' => 'deposit'],
+        ];
+
+        $categories = array_map(function ($item) use ($user) {
+            return [
+                'name'    => $item['name'],
+                'type'    => $item['type'],
+                'user_id' => $user->id,
+            ];
+        }, $defaultCategories);
+
+        Category::insert($categories);
+
 
         event(new Registered($user));
 

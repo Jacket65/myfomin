@@ -23,6 +23,9 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Category</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Description</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Amount</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"></th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider"></th>
+
 
                     </tr>
                     </thead>
@@ -41,8 +44,24 @@
                             <td class="px-6 py-4 text-sm font-semibold {{ $transaction->type == "spend"? 'text-red-500' : 'text-green-600' }}">
                                 {{ $transaction->type == "spend" ? '-' : '+' }}${{ number_format(abs($transaction->amount), 2) }}
                             </td>
+                            <td class="px-6 py-4 text-sm text-gray-700">
+                                <form method="POST" action="{{route('transactions.delete', $transaction->id)}}">
+                                    @csrf
+                                    @method('delete')
+                                    <button type="submit" class="btn btn-danger" id="delete{{$transaction->id}}">delete</button>
+                                </form>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700">
+                                <form method="POST" action="{{route('transactions.update', $transaction->id)}}">
+                                    @csrf
+                                    @method('put')
+                                    <button type="submit" class="btn btn-success" id="put{{$transaction->id}}">change</button>
+                                </form>
+                            </td>
+
 
                         </tr>
+
                     @endforeach
                     </tbody>
                 </table>
@@ -53,66 +72,32 @@
 </div>
 
 
-<script>
-    // ---------------------------
-    // UUID (крос-браузерний)
-    // ---------------------------
-    function uuidv4() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-    }
 
-    // ---------------------------
-    // Sleep helper
-    // ---------------------------
+
+
+
+<script>
+
+
+
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    // ---------------------------
-    // FETCH WITH TIMEOUT
-    // ---------------------------
-    async function fetchWithTimeout(url, options = {}, timeoutMs = 2000) {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), timeoutMs);
 
-        try {
-            const res = await fetch(url, { ...options, signal: controller.signal });
-            clearTimeout(id);
-            return res;
-        } catch (err) {
-            clearTimeout(id);
-
-            if (err.name === "AbortError") {
-                throw new Error("Request timed out");
-            }
-
-            throw err;
-        }
-    }
-
-    // ---------------------------
-    // EXPONENTIAL BACKOFF + JITTER
-    // backoff = base * 2^attempt + random(0..250)
-    // ---------------------------
     function getBackoffDelay(attempt) {
         const base = 300; // базова затримка 300 мс
         const jitter = Math.floor(Math.random() * 250);
         return base * Math.pow(2, attempt) + jitter;
     }
 
-    // ---------------------------
-    // UI elements
-    // ---------------------------
+
     const btn = document.getElementById('spam');
     const status = document.getElementById('status');
 
     let spamming = false;
 
-    // Старт/стоп спаму
+
     btn.addEventListener('click', () => {
         spamming = !spamming;
 
@@ -124,21 +109,6 @@
         }
     });
 
-    // ---------------------------
-    // Main spam loop
-    // ---------------------------
-    async function spamPostRequests() {
-        let attempt = 0;
-
-        while (spamming) {
-            await sendTransaction(attempt);
-            await sleep(150); // невелика пауза між POST
-        }
-    }
-
-    // ---------------------------
-    // POST /transactions + full resilience
-    // ---------------------------
     async function sendTransaction(attempt) {
         const idempotencyKey = uuidv4();
 
@@ -153,9 +123,7 @@
 
             }, 1000);
 
-            // -------------------------
-            // RATE-LIMIT 429 + RETRY-AFTER
-            // -------------------------
+
             if (res.status === 429) {
                 const retryAfter = Number(res.headers.get("Retry-After") || 1);
 
@@ -165,16 +133,13 @@
 
                 await sleep(retryAfter * 1000);
 
-                // Degraded mode → OFF
                 btn.disabled = false;
                 status.innerText = "";
 
-                return; // цикл продовжиться сам → retry
+                return;
             }
 
-            // -------------------------
-            // SERVER ERROR → RETRY WITH BACKOFF
-            // -------------------------
+
             if (res.status >= 500) {
                 const delay = getBackoffDelay(attempt);
                 status.innerText = `Server error ${res.status}. Retrying in ${delay}ms...`;
@@ -182,18 +147,14 @@
                 return;
             }
 
-            // -------------------------
-            // Все ок
-            // -------------------------
+
             const data = await res.json();
             console.log("Created:", data);
             status.innerText = "";
             return;
 
         } catch (err) {
-            // -------------------------
-            // TIMEOUT → RETRY WITH BACKOFF
-            // -------------------------
+
             if (err.message === "Request timed out") {
                 const delay = getBackoffDelay(attempt);
                 status.innerText = `Timeout. Retrying in ${delay}ms...`;

@@ -11,7 +11,8 @@ class CategoryController extends Controller
     public function index(): JsonResponse
     {
         $type = request('type');
-        $categories = Category::where('type', $type)->get();
+        $user = auth()->user();
+        $categories = $user->categories()->where('type', $type)->get();
         return response()->json($categories);
     }
 }

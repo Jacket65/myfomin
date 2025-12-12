@@ -1,7 +1,6 @@
 <x-guest-layout>
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
-asddas
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
@@ -38,6 +37,10 @@ asddas
                     {{ __('Forgot your password?') }}
                 </a>
             @endif
+
+            <a href="{{route('register')}}" class="btn btn-light" role="button">
+                Register
+            </a>
 
             <x-primary-button class="ms-3">
                 {{ __('Log in') }}
