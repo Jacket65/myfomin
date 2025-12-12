@@ -69,6 +69,10 @@ jobs:
           APP_ENV=testing
           EOL
 
+      - name: Create test database
+        run: |
+          PGPASSWORD=secret psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE myfin_test;"
+
       - name: Run Migrations
         run: php artisan migrate --force
 
