@@ -70,6 +70,16 @@ jobs:
           APP_ENV=testing
           EOL
 
+      - name: Wait for PostgreSQL to be ready
+        run: |
+
+          until pg_isready --host=postgres --port=5432 --username=postgres; do
+            echo "Waiting for PostgreSQL to start..."
+            sleep 2
+          done
+          echo "PostgreSQL is up and running!"
+        shell: bash
+
       - name: Run Migrations
         run: php artisan migrate --force
 
