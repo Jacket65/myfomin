@@ -22,7 +22,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: secret
-          POSTGRES_DB: laravel
+          POSTGRES_DB: myfin
 
         ports:
           - 5432:5432
@@ -63,7 +63,7 @@ jobs:
           DB_CONNECTION=pgsql
           DB_HOST=postgres
           DB_PORT=5432
-          DB_DATABASE=laravel
+          DB_DATABASE=myfin
           DB_USERNAME=postgres
           DB_PASSWORD=secret
           APP_URL=http://localhost
